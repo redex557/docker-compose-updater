@@ -3,9 +3,13 @@ import yaml
 import json
 import http.client
 from glob import glob
+from simple_term_menu import TerminalMenu
+import os
+import datetime
 
 arch = "amd64"
 splitchars = [".","-","_"]
+composepath = '*.yml'
 
 def parse_compose_file(filename:str):
 	versions = {}
@@ -136,16 +140,34 @@ def compare_tags(t0:list, t1:list) -> int:
 				return 1	
 
 
-for fname in glob('files/*.yml'):
-	print(fname)
+for fname in glob(composepath):
 	data = parse_compose_file(fname)
 	for img in data:
+		upd = ["Don't update"]
 		cur = split_tag(data[img]["current"])
 		for tag in data[img]["available"]:
 			#print(tag)
 			t = list(tag.keys())[0]
 			t_sp  = split_tag(t)
 			if compare_tags(cur,t_sp) == 1:
-				print(img)
-				print("Update: ",data[img]["current"],"==>",t,"\n")
+				upd.append(t)
+		if len(upd) > 1:	
+			print("\n"+fname)
+			print(f"Update(s) for {img}: {data[img]['current']} ==> {upd}")
+			terminal_menu = TerminalMenu(upd)
+			menu_entry_index = terminal_menu.show()
+			print(f"You have selected: {upd[menu_entry_index]}!")
+
+			if menu_entry_index > 0:
+				replaced_content = ""
+				with open(fname,"r") as f:
+					with open("composefile_backups/"+os.path.basename(fname)+"."+datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S'),'w') as backup:
+						backup.write(f.read())
+				with open(fname,"r") as f:
+					for line in f:
+						line = line.strip("\n")
+						new_line = line.replace(f"{img.replace('library/','')}:{data[img]['current']}", f"{img.replace('library/','')}:{upd[menu_entry_index]}")
+						replaced_content = replaced_content + new_line + "\n"
+				with open(fname,"w") as f:
+					f.write(replaced_content)
 
